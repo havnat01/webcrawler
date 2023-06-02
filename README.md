@@ -4,7 +4,7 @@
 ### Cloning
 
 ```
-git clone https://github.com/xichen-de/ParallelWebCrawler.git
+git clone https://github.com/havnat01/webcrawler.git
 ```
 
 ### Build and test
