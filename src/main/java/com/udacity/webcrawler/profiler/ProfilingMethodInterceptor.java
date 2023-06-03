@@ -27,24 +27,33 @@ final class ProfilingMethodInterceptor implements InvocationHandler {
   @Override
   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
     boolean isProfiled = method.isAnnotationPresent(Profiled.class);
-    Instant beginningTime = isProfiled ? clock.instant() : null;
-    Object invokedObject;
-
+    Instant startTime = isProfiled ? clock.instant() : null;
+    Object result;
     try {
-      invokedObject = method.invoke(delegate, args);
-    } catch (InvocationTargetException | IllegalAccessException e) {
-      if (e instanceof InvocationTargetException) {
-        throw e.getCause();
-      } else {
-        throw new RuntimeException("Unexpected invocation exception: " + e.getMessage());
+      result = isProfiled ? profiledInvoke(method, args) : method.invoke(delegate, args);
+    } finally {
+      if (isProfiled) {
+        recordProfiledInvocation(method, startTime);
       }
     }
-
-    if (isProfiled) {
-      Duration duration = Duration.between(beginningTime, clock.instant());
-      state.record(delegate.getClass(), method, duration);
-    }
-
-    return invokedObject;
+    return result;
   }
+
+  private Object profiledInvoke(Method method, Object[] args) throws Throwable {
+    Object result;
+    try {
+      result = method.invoke(delegate, args);
+    } catch (IllegalAccessException | IllegalArgumentException ex) {
+      throw new RuntimeException(ex);
+    } catch (InvocationTargetException ex) {
+      throw ex.getTargetException();
+    }
+    return result;
+  }
+
+  private void recordProfiledInvocation(Method method, Instant startTime) {
+    Duration duration = Duration.between(startTime, clock.instant());
+    state.record(delegate.getClass(), method, duration);
+  }
+
 }
