@@ -46,23 +46,29 @@ final class ProfilerImpl implements Profiler {
     }
 
     ProfilingMethodInterceptor profilingMethodInterceptor =
-            new ProfilingMethodInterceptor(this.clock, delegate, this.state, this.startTime);
+            new ProfilingMethodInterceptor(clock, delegate, state);
 
-    Object proxy = Proxy.newProxyInstance(
+    return klass.cast(Proxy.newProxyInstance(
             ProfilerImpl.class.getClassLoader(),
-            new Class[]{Objects.requireNonNull(klass)},
+            new Class[]{klass},
             profilingMethodInterceptor
-    );
-
-    return (T) proxy;
+    ));
   }
 
   @Override
-  public void writeData(Path path) {
-    try (FileWriter fileWriter = new FileWriter(Objects.requireNonNull(path).toFile(), true)){
+  public void writeData(Path path) throws IOException {
+    FileWriter fileWriter = null;
+    try {
+      fileWriter = new FileWriter(Objects.requireNonNull(path).toFile(), true);
       writeData(fileWriter);
-    } catch (IOException ex) {
-      ex.getLocalizedMessage();
+    } finally {
+      if (fileWriter != null) {
+        try {
+          fileWriter.close();
+        } catch (IOException ex) {
+          ex.printStackTrace();
+        }
+      }
     }
   }
 

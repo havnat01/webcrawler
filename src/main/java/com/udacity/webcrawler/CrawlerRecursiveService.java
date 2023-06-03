@@ -7,22 +7,24 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.RecursiveTask;
 import java.util.regex.Pattern;
 
-public final class CrawlInternalTask extends RecursiveTask<Boolean> {
+public final class CrawlerRecursiveService extends RecursiveTask<Boolean> {
+
     private final String url;
     private final Instant deadline;
     private final int maxDepth;
     private final ConcurrentMap<String, Integer> counts;
     private final ConcurrentSkipListSet<String> visitedUrls;
     private final Clock clock;
-    private final PageParserFactory parserFactory;
+    private final PageParserFactory pageParserFactory;
     private final List<Pattern> ignoredUrls;
 
-    public CrawlInternalTask(
+    public CrawlerRecursiveService(
             String url,
             Instant deadline,
             int maxDepth,
@@ -38,8 +40,16 @@ public final class CrawlInternalTask extends RecursiveTask<Boolean> {
         this.counts = counts;
         this.visitedUrls = visitedUrls;
         this.clock = clock;
-        this.parserFactory = parserFactory;
+        this.pageParserFactory = parserFactory;
         this.ignoredUrls = ignoredUrls;
+    }
+
+    private Optional<PageParser.Result> parseUrl(String url) {
+        try {
+            return Optional.of(pageParserFactory.get(url).parse());
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 
     @Override
@@ -53,27 +63,29 @@ public final class CrawlInternalTask extends RecursiveTask<Boolean> {
             }
         }
 
-        synchronized(this) {
+        synchronized (visitedUrls) {
             if (visitedUrls.contains(url)) {
                 return false;
             }
-            if (!visitedUrls.add(url)){
-                return false;
+            visitedUrls.add(url);
+        }
+
+        Optional<PageParser.Result> resultOpt = parseUrl(url);
+        if (resultOpt.isPresent()) {
+            PageParser.Result result = resultOpt.get();
+            for (ConcurrentMap.Entry<String, Integer> e : result.getWordCounts().entrySet()) {
+                counts.compute(e.getKey(), (k, v) -> (v == null) ? e.getValue() : e.getValue() + v);
             }
 
+            List<CrawlerRecursiveService> subtasks = new ArrayList<>();
+            for (String link : result.getLinks()) {
+                subtasks.add(new CrawlerRecursiveService(link, deadline, maxDepth - 1, counts,
+                        visitedUrls, clock, pageParserFactory, ignoredUrls));
+            }
+            invokeAll(subtasks);
+            return true;
+        } else {
+            return false;
         }
-
-        PageParser.Result result = parserFactory.get(url).parse();
-        for (ConcurrentMap.Entry<String, Integer> e : result.getWordCounts().entrySet()) {
-            counts.compute(e.getKey(), (k, v) -> (v == null) ? e.getValue() : e.getValue()+v);
-        }
-
-        List<CrawlInternalTask> subtasks = new ArrayList<>();
-        for (String link : result.getLinks()) {
-            subtasks.add(new CrawlInternalTask(link, deadline, maxDepth - 1, counts,
-                    visitedUrls, clock, parserFactory, ignoredUrls));
-        }
-        invokeAll(subtasks);
-        return true;
     }
 }

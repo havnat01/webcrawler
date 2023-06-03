@@ -31,11 +31,20 @@ public final class CrawlResultWriter {
    * @param path the file path where the crawl result data should be written.
    */
   public void write(Path path) {
-    try (FileWriter fileWriter = new FileWriter(Objects.requireNonNull(path).toFile(), true)){
+    FileWriter fileWriter = null;
+    try {
+      fileWriter = new FileWriter(Objects.requireNonNull(path).toFile(), true);
       write(fileWriter);
-    }
-    catch (IOException ex) {
-      ex.getLocalizedMessage();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } finally {
+      if (fileWriter != null) {
+        try {
+          fileWriter.close();
+        } catch (IOException ex) {
+          ex.printStackTrace();
+        }
+      }
     }
   }
 
@@ -44,12 +53,8 @@ public final class CrawlResultWriter {
    *
    * @param writer the destination where the crawl result data should be written.
    */
-  public void write(Writer writer) {
+  public void write(Writer writer) throws IOException {
     objectMapper.disable(com.fasterxml.jackson.core.JsonGenerator.Feature.AUTO_CLOSE_TARGET);
-    try {
-      objectMapper.writeValue(Objects.requireNonNull(writer), result);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    objectMapper.writeValue(Objects.requireNonNull(writer), result);
   }
 }

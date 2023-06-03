@@ -1,9 +1,6 @@
 package com.udacity.webcrawler;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.PriorityQueue;
+import java.util.*;
 
 import static java.lang.Math.min;
 import static java.util.stream.Collectors.toMap;
@@ -22,10 +19,15 @@ final class WordCounts {
    * @return a map containing the top {@param popularWordCount} words and counts in the right order.
    */
   static Map<String, Integer> sort(Map<String, Integer> wordCounts, int popularWordCount) {
-      return wordCounts.entrySet().stream()
-              .sorted(new WordCountComparator())
-              .limit(min(popularWordCount, wordCounts.size()))
-              .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (key, value) -> key, LinkedHashMap::new));
+    List<Map.Entry<String, Integer>> entries = new ArrayList<>(wordCounts.entrySet());
+    entries.sort(new WordCountComparator());
+    int limit = Math.min(popularWordCount, entries.size());
+    Map<String, Integer> sortedWordCounts = new LinkedHashMap<>();
+    for (int i = 0; i < limit; i++) {
+      Map.Entry<String, Integer> entry = entries.get(i);
+      sortedWordCounts.put(entry.getKey(), entry.getValue());
+    }
+    return sortedWordCounts;
   }
 
   /**
@@ -41,12 +43,16 @@ final class WordCounts {
   private static final class WordCountComparator implements Comparator<Map.Entry<String, Integer>> {
     @Override
     public int compare(Map.Entry<String, Integer> a, Map.Entry<String, Integer> b) {
-      if (!a.getValue().equals(b.getValue())) {
-        return b.getValue() - a.getValue();
+      int valueCompare = Integer.compare(b.getValue(), a.getValue());
+      if (valueCompare != 0) {
+        return valueCompare;
       }
-      if (a.getKey().length() != b.getKey().length()) {
-        return b.getKey().length() - a.getKey().length();
+
+      int lengthCompare = Integer.compare(b.getKey().length(), a.getKey().length());
+      if (lengthCompare != 0) {
+        return lengthCompare;
       }
+
       return a.getKey().compareTo(b.getKey());
     }
   }
